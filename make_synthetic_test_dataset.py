@@ -14,7 +14,7 @@ d2r = np.pi / 180
 
 MAKE_DATASET = False
 EXPLORE = False
-SAVE_FIELDLINES = True
+MAKE_FIELD_LINE_PLOT = False
 
 
 # MAKE MAGNETIC FIELD FUNCTIONS:
@@ -31,7 +31,7 @@ def get_B(x):
 
     xx, yy, zz = x
     rr = np.sqrt(xx**2 + yy**2)
-    gaussian = A * np.exp(- ((rr - r0)**2/(2 * sig_r**2) + zz**2 / (2 * sig_Z**2)) )
+    gaussian = -A * np.exp(- ((rr - r0)**2/(2 * sig_r**2) + zz**2 / (2 * sig_Z**2)) )
     theta = np.arctan2(yy, xx)
     Bx = -np.sin(theta) * gaussian
     By =  np.cos(theta) * gaussian
@@ -122,13 +122,14 @@ if MAKE_DATASET: # use this for making the dataset
     plt.show()
 
 
-if SAVE_FIELDLINES:
-    mlats = [-75, -70, -65, -60]
-    kws = [{'color':'green'}, {'color':'red'}, {'color':'black'}, {'color':'black'}]
+if MAKE_FIELD_LINE_PLOT:
+    mlats = [-75, -70, -65, -60][::-1]
+    kws = [{'color':'green'}, {'color':'red'}, {'color':'black'}, {'color':'black'}][::-1]
     fieldlines = []
 
     fig, ax = plt.subplots(ncols = 1)
     a = np.linspace(-np.pi, np.pi)
+    ax.fill_between(np.cos(a), np.sin(a), color = 'grey')
     ax.plot(np.cos(a), np.sin(a), color = 'grey', linewidth = 3)
     ax.set_aspect('equal')
 
@@ -141,7 +142,17 @@ if SAVE_FIELDLINES:
         fieldlines.append(fieldline)
 
         ax.plot(fieldline[0], fieldline[2], **kw)
-        ax.plot(-fieldline[1], fieldline[2], **kw)
+
+
+    for mlat, kw in zip(mlats, kws):
+        conj_lat, conj_lon, fieldline = trace_from_south_to_north(get_B, mlat, -90, height = 0, t_bound = 130 * RE * 1e32)
+        fieldline = fieldline.T
+        print(mlat, conj_lat, conj_lon / 15)
+
+        fieldlines.append(fieldline)
+
+        #ax.plot(fieldline[0], fieldline[2], **kw)
+        ax.plot(fieldline[0], fieldline[2], **kw)
 
     xlim, ylim = ax.get_xlim(), ax.get_ylim()
     xx, zz = np.meshgrid(np.linspace(xlim[0], xlim[1], 200), np.linspace(ylim[0], ylim[1], 200))
@@ -151,8 +162,11 @@ if SAVE_FIELDLINES:
     By = totalB[:, 1].reshape(xx.shape) * 1e9
     By[(xx**2 + zz**2) <= 1] = np.nan
 
+    ax.set_xlabel('r [$R_E$]')
+    ax.set_ylabel('z [$R_E$]')
 
-    ax.contourf(xx, zz, By, levels = np.linspace(0, 50, 25), extend = 'both')
+
+    ax.contourf(xx, zz, -By, levels = np.linspace(0, 50, 25), extend = 'both')
 
 
 

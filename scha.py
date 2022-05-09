@@ -147,6 +147,11 @@ def get_root_table(theta0, Mmax, Kmax = False):
     if not Kmax:
         Kmax = Mmax 
 
+    Mmax = Kmax if Kmax > Mmax else Mmax # this is inefficient but it works. Improve. 
+    Kmax = Mmax if Mmax > Kmax else Kmax
+
+
+
     Nmax =  (np.pi / (theta0 * d2r) * (Mmax + .5) - .5) # 1.2 * equation (5) from Torta
     
     nm_of_k = {}
@@ -338,7 +343,7 @@ class SCH_potential(object):
         self.theta0 = theta0
         self.R = R
 
-        self.sch = SCH(self.Kmax, self.Mmax, self.theta0, self.R, k_minus_m = 'even')
+        self.sch = SCH(self.Kmax, self.Mmax, self.theta0, self.R, k_minus_m = 'odd')
 
         G = self.sch(lat.flatten(), lon.flatten())
         GTG = G.T.dot(G)
@@ -366,6 +371,19 @@ class SCH_potential(object):
         Gn = -self.sch.dtheta(lat, lon) 
         return Gn.dot(self.m) / self.R
 
+
+    def d_dphi(self, lat, lon):
+        """ return potential differentiated wrt longitude """
+        lat, lon = lat.flatten(), lon.flatten()
+        Ge = self.sch.dphi(lat, lon)
+        return Ge.dot(self.m)
+
+
+    def d_dlambda(self, lat, lon):
+        """ return potential differentiated wrt latitude """
+        lat, lon = lat.flatten(), lon.flatten()
+        Gn = -self.sch.dtheta(lat, lon) 
+        return Gn.dot(self.m)
 
 
 

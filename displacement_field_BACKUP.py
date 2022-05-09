@@ -21,11 +21,11 @@ d2r = np.pi / 180
 RE = 6371.2e3
 
 R = (6371.2 + 110) * 1e3
-DAMPING = 1e5#5e-2
+DAMPING = 1e1#5e-2
 
 WEIMER_FIGURES = True # set to True to make Figures 3-5
-SYNTHETIC_FIGURES = True # set to True to make Figures 1-2
-LATLIM = 78
+SYNTHETIC_FIGURES = False # set to True to make Figures 1-2
+LATLIM = 80
 
 def shifted_coords(theta, phi, dr, arclength = False):
     """ get shifted spherical coordinates that correspond to
@@ -80,11 +80,10 @@ def shifted_coords(theta, phi, dr, arclength = False):
 
 class Displacement_field(object):
     def __init__(self, V, lat, lon, 
-                       Kmax = 20, Mmax = 20, theta0 = 30, 
+                       Kmax = 20, Mmax = 20, theta0 = 40, 
                        latlim = LATLIM,
                        R = (6371 + 110)*1e3, corotation_included = False,
-                       use_input_grid = False,
-                       B0 = 30000e-9):
+                       use_input_grid = False):
         """ 
 
         parameters
@@ -132,28 +131,20 @@ class Displacement_field(object):
 
         assert np.all((90 - lat) <= theta0) # no points equatorward of boundary
 
-        self.R  = R
-        self.B0 = B0
-        self.latlim = latlim
+        self.R = R
 
         lat = np.abs(lat) 
-
-        if not corotation_included: # add corotation electric field
-            Vc = 2 * np.pi / (24 * 60**2) * self.B0 * RE**3 / R * np.cos(lat * d2r) **2 * 1e-3 # kV
-            self.Vc = Vc
-            V = V + Vc
-
 
         # make spherical cap harmonic representation of potentials:
         self.V_n = scha.SCH_potential(lat[0], lon[0], V[0] * 1e3, theta0 = theta0, Kmax = Kmax, Mmax = Mmax)
         self.V_s = scha.SCH_potential(lat[1], lon[1], V[1] * 1e3, theta0 = theta0, Kmax = Kmax, Mmax = Mmax)
 
+        # functions to get the electric field:
+        self.En_n = lambda la, lo: -self.V_n.grad_n(la, lo)
+        self.Ee_n = lambda la, lo: -self.V_n.grad_e(la, lo)
+        self.En_s = lambda la, lo: -self.V_s.grad_n(la, lo)
+        self.Ee_s = lambda la, lo: -self.V_s.grad_e(la, lo)
 
-        # functions to get partial_derivatives:
-        self.Vlambda_n = lambda la, lo: self.V_n.d_dlambda(la, lo)
-        self.Vphi_n    = lambda la, lo: self.V_n.d_dphi(   la, lo)
-        self.Vlambda_s = lambda la, lo: self.V_s.d_dlambda(la, lo)
-        self.Vphi_s    = lambda la, lo: self.V_s.d_dphi(   la, lo)
 
         # data point grid
         if use_input_grid:
@@ -161,7 +152,7 @@ class Displacement_field(object):
             assert np.all(np.equal(*lon))
             lat, lon = lat[0], lon[0]
         else:
-            datagrid, _ = sdarngrid(dlat = .5, dlon = 5, latmin = 60)
+            datagrid, _ = sdarngrid(dlat = 1, dlon = 5, latmin = 50)
             lat, lon = datagrid
 
         #############
@@ -169,50 +160,35 @@ class Displacement_field(object):
         #############
 
         # prepare arrays
-        dV = (self.V_n(lat, lon) - self.V_s(lat, lon))
-        V_phi, V_lambda = self.Vphi_s(lat, lon), self.Vlambda_s(lat, lon)
+        dVB = (self.V_s(lat, lon) - self.V_n(lat, lon)) * self.Br(lat)
+        Ee, En = self.Ee_n(lat, lon), self.En_n(lat, lon)
 
-        sinIm = 2 * np.sin(lat * d2r) / np.sqrt(4 - 3 * np.cos(lat * d2r)**2)
-        Ee, En = -self.Vphi_s(lat, lon) / (self.V_s.R * np.cos(lat * d2r)), self.Vlambda_s(lat, lon) / (self.V_s.R * sinIm)
+        if not corotation_included: # add corotation electric field
+            En = En + self.B(lat) * np.cos(lat * d2r) * R * 2 * np.pi / (24 * 60**2)
 
-
-        # Electric field magnitude (used below for filtering)
+        # make filter for equations with very small electric field:
         E = np.sqrt(Ee**2 + En**2)
+        iii = ((E > 0)).nonzero()[0]
 
         # Set up SCHA matrices:
-        self.SCHA = scha.SCH(Kmax, Mmax, theta0 = 30, R = self.R, k_minus_m = 'even')
-        Gphi    =  self.SCHA.dphi(  lat, lon) 
-        Glambda = -self.SCHA.dtheta(lat, lon) 
-
-        # Bondary:
-        blat = np.full(100, 60)
-        blon = np.linspace(0, 360, blat.size)
-        Gphi_b    =  self.SCHA.dphi(  blat, blon) 
-        Glambda_b = -self.SCHA.dtheta(blat, blon) 
-
+        self.SCHA = scha.SCH(Kmax, Mmax, theta0 = 40.1, R = self.R, k_minus_m = 'even')
+        Ge_ =  self.SCHA.dphi(  lat, lon) / np.cos(lat.reshape((-1, 1)) * d2r) / self.SCHA.R
+        Gn_ = -self.SCHA.dtheta(lat, lon) / self.SCHA.R
+        Ge = -Gn_ # eastward  component of r x grad(Psi)
+        Gn =  Ge_ # northward component of r x grad(Psi)
 
         # combine:
-        scaling = 1 / (self.SCHA.R**2 * self.B0 * np.sin(2 * lat.reshape((-1, 1)) * d2r))
-        Gt = scaling * (Gphi * V_lambda[:, np.newaxis] - Glambda * V_phi[:, np.newaxis])
-
-
-        # remove equations poleward of latitude limit and with weak electric fields
-        iii = ((E > 0) & (lat < self.latlim)).nonzero()[0]
+        Gt = -Ge * Ee[:, np.newaxis] + -Gn * En[:, np.newaxis]
 
         # weights
-        wd = np.ones(len(dV)) 
+        wd = np.ones(len(dVB)) 
+        wd[lat > latlim] = 0 # reduced weight poleward of limit
 
 
-        # stack them together (mask invalid equations   ):
+        # stack them together (mask equations with E~0):
         W = wd[iii][:, np.newaxis]
-        print(Gt.shape, dV.shape, W.shape, '<<< shapes')
         G = Gt[iii] * W 
-        d = dV[iii] * W.flatten()
-
-        # add boundary elements:
-        G = np.vstack((G, Gphi_b, Glambda_b))
-        d = np.hstack((d, np.zeros(blon.size * 2)))
-        print(d.max(), d.min())
+        d = dVB[iii] * W.flatten()
 
         # solve:
         gtg = G.T.dot(G)
@@ -223,9 +199,9 @@ class Displacement_field(object):
         diff = np.linalg.norm(I0)
 
         I = np.zeros(gtg.shape[0]) # initialize solution in case diff = 0
-        while diff > 1e-3:
+        while diff > 1e-5:
             error = np.abs(G.dot(I0) - d)
-            error[error < 1e0] = 1e0
+            error[error < 1e-2] = 1e-2
             RRR = np.diag(1/error.flatten())
             gtrg = G.T.dot(RRR).dot(G)
             gtrd = G.T.dot(RRR).dot(d)
@@ -243,34 +219,22 @@ class Displacement_field(object):
             units will be same as units of self.R 
         """
 
-        sinIm = 2 * np.sin(mlat * d2r) / np.sqrt(4 - 3 * np.cos(mlat * d2r)**2)
-        Be3 = self.B0 * np.sqrt(4 - 3 * np.cos(mlat * d2r)**2)
-        Gphi    =  self.SCHA.dphi(  mlat, mlt * 15)
-        Glambda = -self.SCHA.dtheta(mlat, mlt * 15)
+        Ge_ =  self.SCHA.dphi(  mlat, mlt*15) / np.cos(mlat.reshape((-1, 1)) * d2r) / self.SCHA.R
+        Gn_ = -self.SCHA.dtheta(mlat, mlt*15) / self.SCHA.R
+        Ge = -Gn_ # eastward  component of r x grad(Psi)
+        Gn =  Ge_ # northward component of r x grad(Psi)
 
-        delta_e1 = Glambda.dot(self.I) / (Be3 * self.R * sinIm)
-        delta_e2 = Gphi.dot(   self.I) / (Be3 * self.R * np.cos(mlat * d2r))
-
-        delta_east = delta_e1
-        delta_north = -sinIm * delta_e2
-
-
-        #Ge_ =  self.SCHA.dphi(  mlat, mlt*15) / np.cos(mlat.reshape((-1, 1)) * d2r) / self.SCHA.R
-        #Gn_ = -self.SCHA.dtheta(mlat, mlt*15) / self.SCHA.R
-        #Ge = -Gn_ # eastward  component of r x grad(Psi)
-        #Gn =  Ge_ # northward component of r x grad(Psi)
-
-        return delta_east, delta_north#Ge.dot(self.I) / self.Br(mlat), Gn.dot(self.I) / self.Br(mlat)
+        return Ge.dot(self.I) / self.Br(mlat), Gn.dot(self.I) / self.Br(mlat)
 
     def Br(self, lat):
         """ function to calculate radial magnetic field as function of latitude """
-        return 2 * np.cos(np.pi/2 - lat*d2r) * self.B0 * (6371.2*1e3/self.R)**3
+        return 2 * np.cos(np.pi/2 - lat*d2r) * 3e-5 * (6371.2*1e3/self.R)**3
 
 
     def B(self, lat):
         """ function to calculate magnetic field magnitude as funciton of latitude """
         #return np.mean(np.sqrt(1 + 3 * np.sin(lat * d2r) ** 2) * 3.12e-5 * (6371.2*1e3/self.R)**3)
-        return np.sqrt(1 + 3 * np.sin(lat * d2r) ** 2) * self.B0 * (6371.2*1e3/self.R)**3
+        return np.sqrt(1 + 3 * np.sin(lat * d2r) ** 2) * 3.12e-5 * (6371.2*1e3/self.R)**3
 
 
     def conjugate_coordinates(self, mlat, mlt):
@@ -296,7 +260,7 @@ if WEIMER_FIGURES:
     fig_phi_sh = plt.figure(figsize = (13, 13))
 
     # set up grids
-    datagrid, _ = sdarngrid(dlat = .25, dlon = 1, latmin = 60)
+    datagrid, _ = sdarngrid(dlat = .5, dlon = 3, latmin = 60)
     lat, lon = datagrid
     
     xxx, yyy = np.meshgrid(np.r_[55:80:1], np.r_[0:360:6])
@@ -311,12 +275,11 @@ if WEIMER_FIGURES:
         for j, by in enumerate(['neg', 'zero', 'pos']):
             fn = path + '/' + tilt + '_tilt_' + by + '_by.txt'
             weimer = pd.read_table(fn, sep = ' ', skipinitialspace=True, comment = '#', names = ['mlat', 'mlt', 'R_E', 'phi'])
-            weimer = weimer[np.abs(weimer.mlat) > 60]
 
             V = np.vstack(( weimer[weimer.mlat > 0].phi.values, weimer[weimer.mlat < 0].phi.values)) 
             Vlat = np.abs(np.vstack((weimer[weimer.mlat > 0].mlat.values, weimer[weimer.mlat < 0].mlat.values)))
             Vlon = np.abs(np.vstack((weimer[weimer.mlat > 0].mlt .values, weimer[weimer.mlat < 0].mlt .values))) * 15    
-            displacement = Displacement_field(V, Vlat, Vlon, theta0 = 30, corotation_included = False, Kmax = 25, Mmax = 3, latlim = 78) 
+            displacement = Displacement_field(V, Vlat, Vlon, theta0 = 40.1, corotation_included = True, Kmax = 15, Mmax = 15) 
 
             Vn = displacement.V_n(lat, lon) * 1e-3
             Vs = displacement.V_s(lat, lon) * 1e-3
@@ -334,8 +297,7 @@ if WEIMER_FIGURES:
 
             # plot displacement field:
             dr = displacement(latv, lonv / 15)
-            iii = latv < displacement.latlim
-            pax_df.plotpins(latv[iii], lonv[iii] / 15, dr[1][iii]/ displacement.R / d2r, dr[0][iii] / displacement.R / d2r, SCALE = 4, unit = None, markersize = 2, linewidth = 1)
+            pax_df.plotpins(latv, lonv / 15, dr[1]/ displacement.R / d2r, dr[0] / displacement.R / d2r, SCALE = 4, unit = None, markersize = 2, linewidth = 1)
 
             # plot shifted potentials
             cmlat, cmlt = displacement.conjugate_coordinates(lat, lon / 15)
@@ -394,7 +356,6 @@ if SYNTHETIC_FIGURES:
 
 
     weimer = pd.read_csv('weimer_zero_tilt_zero_by_with_synthetic_displacement.csv', sep = ',', skipinitialspace=True, comment = '#')
-    weimer = weimer[np.abs(weimer.mlat) > 60]
     weimer.phi = weimer.phi*1e3
 
     V = np.vstack(( weimer[weimer.mlat > 0].phi.values, weimer[weimer.mlat < 0].phi.values)) * 1e-3
@@ -403,11 +364,11 @@ if SYNTHETIC_FIGURES:
 
     print(V.shape, lat.shape, lon.shape)
 
-    displacement = Displacement_field(V, lat, lon, theta0 = 30, Kmax = 25, Mmax = 3, corotation_included = False, latlim = 90) 
+    displacement = Displacement_field(V, lat, lon, theta0 = 40, Kmax = 15, Mmax = 15, corotation_included = False, latlim = 88) 
 
 
     # set up evaluation grids
-    datagrid, _ = sdarngrid(dlat = .25, dlon = 1, latmin = 60)
+    datagrid, _ = sdarngrid(dlat = .5, dlon = 3, latmin = 60)
     lat, lon = datagrid
     xxx, yyy = np.meshgrid(np.r_[60:85:1], np.r_[0:360:6])
     latv, lonv = xxx.flatten(), yyy.flatten()
