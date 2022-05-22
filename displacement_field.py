@@ -84,7 +84,7 @@ class Displacement_field(object):
                        latlim = LATLIM,
                        R = (6371 + 110)*1e3, corotation_included = False,
                        use_input_grid = False,
-                       B0 = 30000e-9):
+                       B0 = 28000e-9):
         """ 
 
         parameters
@@ -254,23 +254,7 @@ class Displacement_field(object):
         delta_east = delta_e1
         delta_north = -sinIm * delta_e2
 
-
-        #Ge_ =  self.SCHA.dphi(  mlat, mlt*15) / np.cos(mlat.reshape((-1, 1)) * d2r) / self.SCHA.R
-        #Gn_ = -self.SCHA.dtheta(mlat, mlt*15) / self.SCHA.R
-        #Ge = -Gn_ # eastward  component of r x grad(Psi)
-        #Gn =  Ge_ # northward component of r x grad(Psi)
-
-        return delta_east, delta_north#Ge.dot(self.I) / self.Br(mlat), Gn.dot(self.I) / self.Br(mlat)
-
-    def Br(self, lat):
-        """ function to calculate radial magnetic field as function of latitude """
-        return 2 * np.cos(np.pi/2 - lat*d2r) * self.B0 * (6371.2*1e3/self.R)**3
-
-
-    def B(self, lat):
-        """ function to calculate magnetic field magnitude as funciton of latitude """
-        #return np.mean(np.sqrt(1 + 3 * np.sin(lat * d2r) ** 2) * 3.12e-5 * (6371.2*1e3/self.R)**3)
-        return np.sqrt(1 + 3 * np.sin(lat * d2r) ** 2) * self.B0 * (6371.2*1e3/self.R)**3
+        return delta_east, delta_north
 
 
     def conjugate_coordinates(self, mlat, mlt):
