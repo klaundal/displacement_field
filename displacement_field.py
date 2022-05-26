@@ -23,7 +23,7 @@ RE = 6371.2e3
 R = (6371.2 + 110) * 1e3
 DAMPING = 1e5#5e-2
 
-WEIMER_FIGURES = True # set to True to make Figures 3-5
+WEIMER_FIGURES = False # set to True to make Figures 3-5
 SYNTHETIC_FIGURES = True # set to True to make Figures 1-2
 LATLIM = 78
 
@@ -175,6 +175,8 @@ class Displacement_field(object):
         sinIm = 2 * np.sin(lat * d2r) / np.sqrt(4 - 3 * np.cos(lat * d2r)**2)
         Ee, En = -self.Vphi_s(lat, lon) / (self.V_s.R * np.cos(lat * d2r)), self.Vlambda_s(lat, lon) / (self.V_s.R * sinIm)
 
+        self.E_s = np.hstack((Ee, En))
+        self.grid = np.hstack((lon, lat))
 
         # Electric field magnitude (used below for filtering)
         E = np.sqrt(Ee**2 + En**2)
@@ -184,8 +186,8 @@ class Displacement_field(object):
         Gphi    =  self.SCHA.dphi(  lat, lon) 
         Glambda = -self.SCHA.dtheta(lat, lon) 
 
-        # Bondary:
-        blat = np.full(100, 60)
+        # Boundary:
+        blat = np.full(0, 60)
         blon = np.linspace(0, 360, blat.size)
         Gphi_b    =  self.SCHA.dphi(  blat, blon) 
         Glambda_b = -self.SCHA.dtheta(blat, blon) 
@@ -321,6 +323,16 @@ if WEIMER_FIGURES:
             iii = latv < displacement.latlim
             pax_df.plotpins(latv[iii], lonv[iii] / 15, dr[1][iii]/ displacement.R / d2r, dr[0][iii] / displacement.R / d2r, SCALE = 4, unit = None, markersize = 2, linewidth = 1)
 
+            ## plot the dot product between E and delta:
+            #Ee, En = np.split(displacement.E_s, 2)
+            #lon_grid, lat_grid = np.split(displacement.grid, 2)
+            #dr_grid = displacement(lat_grid, lon_grid / 15)
+            #iii = lat_grid < displacement.latlim
+            #E_dot_delta = np.abs(Ee * dr_grid[0] + En * dr_grid[1])
+            #E_dot_delta[~iii] = np.nan # mask points poleward of the latitude limit
+            #pax_df.contourf(lat_grid, lon_grid/15, E_dot_delta)
+
+
             # plot shifted potentials
             cmlat, cmlt = displacement.conjugate_coordinates(lat, lon / 15)
             Vn_new = displacement.V_n(cmlat, cmlt * 15) * 1e-3
@@ -409,7 +421,7 @@ if SYNTHETIC_FIGURES:
 
     # plot displacement field:
     dr = displacement(latv, lonv / 15)
-    pax_df.plotpins(latv, lonv / 15, dr[1]/ displacement.R / d2r, dr[0] / displacement.R / d2r, SCALE = 4, unit = None, markersize = 2, linewidth = 1)
+    pax_df.plotpins(latv, lonv / 15, dr[1]/ displacement.R / d2r, dr[0] / displacement.R / d2r, SCALE = 4, unit = None, markersize = 2, linewidth = 1, colors = 'C1', markercolor = 'C1')
 
 
     # plot the *true* displacement field for comparison. To do that, we need to calculate it at the vector grid locations:
