@@ -23,7 +23,7 @@ RE = 6371.2e3
 R = (6371.2 + 110) * 1e3
 DAMPING = 1e5#5e-2
 
-WEIMER_FIGURES = False # set to True to make Figures 3-5
+WEIMER_FIGURES = True # set to True to make Figures 3-5
 SYNTHETIC_FIGURES = True # set to True to make Figures 1-2
 LATLIM = 78
 
@@ -207,14 +207,14 @@ class Displacement_field(object):
 
         # stack them together (mask invalid equations   ):
         W = wd[iii][:, np.newaxis]
-        print(Gt.shape, dV.shape, W.shape, '<<< shapes')
+        #print(Gt.shape, dV.shape, W.shape, '<<< shapes')
         G = Gt[iii] * W 
         d = dV[iii] * W.flatten()
 
         # add boundary elements:
         G = np.vstack((G, Gphi_b, Glambda_b))
         d = np.hstack((d, np.zeros(blon.size * 2)))
-        print(d.max(), d.min())
+        #print(d.max(), d.min())
 
         # solve:
         gtg = G.T.dot(G)

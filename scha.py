@@ -230,7 +230,6 @@ class SCH(object):
 
         # make table of non-integer ns
         self.n = get_root_table(theta0, M, K)
-        print(K, M, self.n, '<---')
 
         # define the rest of the global variables
         self.R = R
