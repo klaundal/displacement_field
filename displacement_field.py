@@ -24,7 +24,7 @@ R = (6371.2 + 110) * 1e3
 DAMPING = 1e5#5e-2
 
 WEIMER_FIGURES = True # set to True to make Figures 3-5
-SYNTHETIC_FIGURES = True # set to True to make Figures 1-2
+SYNTHETIC_FIGURES = False # set to True to make Figures 1-2
 LATLIM = 78
 
 def shifted_coords(theta, phi, dr, arclength = False):
@@ -285,9 +285,7 @@ if WEIMER_FIGURES:
     datagrid, _ = sdarngrid(dlat = .25, dlon = 1, latmin = 60)
     lat, lon = datagrid
     
-    xxx, yyy = np.meshgrid(np.r_[55:80:1], np.r_[0:360:6])
-    latv, lonv = xxx.flatten(), yyy.flatten()
-    vectorgrid, _ = sdarngrid(dlat = 1, dlon = 4, latmin = 60)
+    vectorgrid, _ = sdarngrid(dlat = 1.5, dlon = 5, latmin = 60)
     latv, lonv = vectorgrid
 
 
@@ -295,6 +293,7 @@ if WEIMER_FIGURES:
 
     for i, tilt in enumerate(['neg', 'zero', 'pos']):
         for j, by in enumerate(['neg', 'zero', 'pos']):
+
             fn = path + '/' + tilt + '_tilt_' + by + '_by.txt'
             weimer = pd.read_table(fn, sep = ' ', skipinitialspace=True, comment = '#', names = ['mlat', 'mlt', 'R_E', 'phi'])
             weimer = weimer[np.abs(weimer.mlat) > 60]
@@ -312,6 +311,12 @@ if WEIMER_FIGURES:
             pax_df = pp(fig_df    .add_subplot(3, 3, i * 3 + j + 1), linewidth = .5, linestyle = '--', minlat = 60)
             pax_ph = pp(fig_phi   .add_subplot(3, 3, i * 3 + j + 1), linewidth = .5, linestyle = '--', minlat = 60)
             pax_sh = pp(fig_phi_sh.add_subplot(3, 3, i * 3 + j + 1), linewidth = .5, linestyle = '--', minlat = 60)
+
+            if i == j == 0:
+                for pax in [pax_df, pax_ph, pax_sh]:
+                    pax.writeMLTlabels(mlat = 60)
+                    for lat_ in [60, 70, 80]:
+                        pax.write(lat_, 3, str(lat_) + '$^\circ$', rotation = 45, bbox=dict(facecolor='white', linewidth = 0, alpha=0.5))
 
             # plot potentials
             pax_ph.contour (lat, lon/15, Vn, levels = np.r_[-101:101:10], colors = 'black', linewidths = 1.5)
@@ -405,8 +410,8 @@ if SYNTHETIC_FIGURES:
     # set up evaluation grids
     datagrid, _ = sdarngrid(dlat = .25, dlon = 1, latmin = 60)
     lat, lon = datagrid
-    xxx, yyy = np.meshgrid(np.r_[60:85:1], np.r_[0:360:6])
-    latv, lonv = xxx.flatten(), yyy.flatten()
+    vectorgrid, _ = sdarngrid(dlat = 1.5, dlon = 5, latmin = 60)
+    latv, lonv = vectorgrid
 
     Vn = displacement.V_n(lat, lon) * 1e-3
     Vs = displacement.V_s(lat, lon) * 1e-3
