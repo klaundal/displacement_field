@@ -24,7 +24,7 @@ R = (6371.2 + 110) * 1e3
 DAMPING = 1e5#5e-2
 
 WEIMER_FIGURES = True # set to True to make Figures 3-5
-SYNTHETIC_FIGURES = False # set to True to make Figures 1-2
+SYNTHETIC_FIGURES = True # set to True to make Figures 1-2
 LATLIM = 78
 
 def shifted_coords(theta, phi, dr, arclength = False):
@@ -361,10 +361,13 @@ if WEIMER_FIGURES:
 
     fig_df.savefig(    './figures/figure_5.png', dpi = 250)
     fig_df.savefig(    './figures/figure_5.pdf')
+    fig_df.savefig(    './figures/figure_5.jpg', dpi = 300)
     fig_phi.savefig(   './figures/figure_3.png', dpi = 250)
     fig_phi.savefig(   './figures/figure_3.pdf')
+    fig_phi.savefig(   './figures/figure_3.jpg', dpi = 300)
     fig_phi_sh.savefig('./figures/figure_4.png', dpi = 250)
     fig_phi_sh.savefig('./figures/figure_4.pdf')
+    fig_phi_sh.savefig('./figures/figure_4.jpg', dpi = 300)
 
 
     plt.show()
@@ -534,6 +537,8 @@ if SYNTHETIC_FIGURES:
 
     fig1.savefig('./figures/figure_1.png', dpi = 250)
     fig2.savefig('./figures/figure_2.png', dpi = 250)
+    fig1.savefig('./figures/figure_1.jpg', dpi = 300)
+    fig2.savefig('./figures/figure_2.jpg', dpi = 300)
     fig1.savefig('./figures/figure_1.pdf')
     fig2.savefig('./figures/figure_2.pdf')
 
